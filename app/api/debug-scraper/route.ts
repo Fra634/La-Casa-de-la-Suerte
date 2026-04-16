@@ -182,6 +182,51 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ resultados })
     }
 
+    // ── Debug HTML de Loto Plus — muestra selectores usados ─────────────────
+    if (action === "loto-html") {
+      const res  = await fetch("https://www.jugandoonline.com.ar/Loto.aspx", {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; debug-bot/1.0)" },
+        signal: AbortSignal.timeout(15000),
+      })
+      const html = await res.text()
+      const $    = cheerio.load(html)
+
+      // Todos los .loto-numeros con su posición DOM
+      const lotoNumeros: { i: number; text: string; outerHtml: string }[] = []
+      $(".loto-numeros").each((i, el) => {
+        lotoNumeros.push({ i, text: $(el).text().trim(), outerHtml: ($.html(el) ?? "").slice(0, 200) })
+      })
+
+      // Todos los headings (h1-h4) con su texto y clase
+      const headings: { tag: string; class: string; text: string }[] = []
+      $("h1, h2, h3, h4").each((_, el) => {
+        headings.push({ tag: el.tagName, class: $(el).attr("class") ?? "", text: $(el).text().trim().slice(0, 80) })
+      })
+
+      // Elementos que contienen "PLUS" en su texto (excluyendo scripts)
+      const plusEls: { tag: string; class: string; text: string; outerHtml: string }[] = []
+      $("*:not(script):not(style)").each((_, el) => {
+        const own = $(el).clone().children().remove().end().text().trim()
+        if (/plus/i.test(own) && own.length < 120) {
+          plusEls.push({ tag: el.tagName, class: $(el).attr("class") ?? "", text: own, outerHtml: ($.html(el) ?? "").slice(0, 250) })
+        }
+      })
+
+      // Elementos que contienen "Pozo" en su texto propio
+      const pozoEls: { tag: string; class: string; text: string }[] = []
+      $("*:not(script):not(style)").each((_, el) => {
+        const own = $(el).clone().children().remove().end().text().trim()
+        if (/pozo/i.test(own) && own.length < 200) {
+          pozoEls.push({ tag: el.tagName, class: $(el).attr("class") ?? "", text: own })
+        }
+      })
+
+      // Snippet del HTML completo (primeros 5000 chars)
+      const htmlSnippet = html.slice(0, 5000)
+
+      return NextResponse.json({ lotoNumeros, headings, plusEls: plusEls.slice(0, 20), pozoEls: pozoEls.slice(0, 20), htmlSnippet })
+    }
+
     return NextResponse.json({ error: "action inválida. Usá ?action=sorteos, numeros, o buscar-entrerios" }, { status: 400 })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
