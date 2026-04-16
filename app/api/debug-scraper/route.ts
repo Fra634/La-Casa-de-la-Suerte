@@ -221,28 +221,33 @@ export async function GET(request: NextRequest) {
         }
       })
 
-      // ── Raw HTML del ancestro del h2 "Próximo Pozo Estimado" ────────────────
-      let pozoContext = ""
-      $("h2.loto-titulos").each((_, el) => {
-        if (/pr[oó]ximo\s+pozo/i.test($(el).text())) {
-          // Subir hasta encontrar un contenedor con más contenido (padre, abuelo, bisabuelo)
-          let ancestor = $(el).parent()
-          for (let i = 0; i < 5; i++) {
-            const html = $.html(ancestor) ?? ""
-            if (html.length > 200) {
-              pozoContext = html.slice(0, 2000)
-              break
-            }
-            ancestor = ancestor.parent()
-          }
-          return false
+      // ── Buscar elementos que contienen números grandes (montos de pozo) ──────
+      const bigNumbers: { tag: string; id: string; class: string; text: string; outerHtml: string }[] = []
+      $("*").each((_, el) => {
+        const own = $(el).clone().children().remove().end().text().trim()
+        // Buscar números con puntos como separador de miles, >= 9 dígitos (>=100M)
+        if (/\d{1,3}(\.\d{3}){2,}/.test(own) && own.length < 100) {
+          bigNumbers.push({
+            tag:      el.tagName,
+            id:       $(el).attr("id") ?? "",
+            class:    $(el).attr("class") ?? "",
+            text:     own,
+            outerHtml: ($.html(el) ?? "").slice(0, 300),
+          })
         }
+      })
+
+      // ── Buscar por ID que contenga "Pozo" o "pozo" ───────────────────────────
+      const pozoById: { id: string; text: string }[] = []
+      $("[id*='ozo'], [id*='oto'], [id*='undo'], [id*='monto'], [id*='premio']").each((_, el) => {
+        const txt = $(el).text().trim()
+        if (txt) pozoById.push({ id: $(el).attr("id") ?? "", text: txt.slice(0, 80) })
       })
 
       // Snippet del HTML completo (primeros 5000 chars)
       const htmlSnippet = html.slice(0, 5000)
 
-      return NextResponse.json({ lotoNumeros, headings, plusEls: plusEls.slice(0, 20), pozoEls: pozoEls.slice(0, 20), pozoContext, htmlSnippet })
+      return NextResponse.json({ lotoNumeros, headings, plusEls: plusEls.slice(0, 20), pozoEls, bigNumbers: bigNumbers.slice(0, 20), pozoById: pozoById.slice(0, 20) })
     }
 
     return NextResponse.json({ error: "action inválida. Usá ?action=sorteos, numeros, o buscar-entrerios" }, { status: 400 })
