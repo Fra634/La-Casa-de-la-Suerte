@@ -221,20 +221,20 @@ export async function GET(request: NextRequest) {
         }
       })
 
-      // ── Raw HTML después del h2 "Próximo Pozo Estimado" (500 chars) ─────────
+      // ── Raw HTML del ancestro del h2 "Próximo Pozo Estimado" ────────────────
       let pozoContext = ""
       $("h2.loto-titulos").each((_, el) => {
         if (/pr[oó]ximo\s+pozo/i.test($(el).text())) {
-          // Mostrar el h2 + los 3 siguientes hermanos como HTML crudo
-          let buf = $.html(el) ?? ""
-          let cursor = $(el).next()
-          let n = 0
-          while (cursor.length && n < 5) {
-            buf += "\n" + ($.html(cursor) ?? "")
-            cursor = cursor.next()
-            n++
+          // Subir hasta encontrar un contenedor con más contenido (padre, abuelo, bisabuelo)
+          let ancestor = $(el).parent()
+          for (let i = 0; i < 5; i++) {
+            const html = $.html(ancestor) ?? ""
+            if (html.length > 200) {
+              pozoContext = html.slice(0, 2000)
+              break
+            }
+            ancestor = ancestor.parent()
           }
-          pozoContext = buf.slice(0, 1500)
           return false
         }
       })
