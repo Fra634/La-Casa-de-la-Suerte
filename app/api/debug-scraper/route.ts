@@ -221,10 +221,28 @@ export async function GET(request: NextRequest) {
         }
       })
 
+      // ── Raw HTML después del h2 "Próximo Pozo Estimado" (500 chars) ─────────
+      let pozoContext = ""
+      $("h2.loto-titulos").each((_, el) => {
+        if (/pr[oó]ximo\s+pozo/i.test($(el).text())) {
+          // Mostrar el h2 + los 3 siguientes hermanos como HTML crudo
+          let buf = $.html(el) ?? ""
+          let cursor = $(el).next()
+          let n = 0
+          while (cursor.length && n < 5) {
+            buf += "\n" + ($.html(cursor) ?? "")
+            cursor = cursor.next()
+            n++
+          }
+          pozoContext = buf.slice(0, 1500)
+          return false
+        }
+      })
+
       // Snippet del HTML completo (primeros 5000 chars)
       const htmlSnippet = html.slice(0, 5000)
 
-      return NextResponse.json({ lotoNumeros, headings, plusEls: plusEls.slice(0, 20), pozoEls: pozoEls.slice(0, 20), htmlSnippet })
+      return NextResponse.json({ lotoNumeros, headings, plusEls: plusEls.slice(0, 20), pozoEls: pozoEls.slice(0, 20), pozoContext, htmlSnippet })
     }
 
     return NextResponse.json({ error: "action inválida. Usá ?action=sorteos, numeros, o buscar-entrerios" }, { status: 400 })
