@@ -50,11 +50,19 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase
       .from("resultados_lotoplus")
-      .select("numeros")
+      .select("numeros, numeros_match, numeros_desquite, numeros_sale, numero_plus, pozo_proximo")
       .eq("fecha", fechaLP)
       .maybeSingle()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ numeros: data?.numeros ?? null, fecha: fechaLP })
+    return NextResponse.json({
+      numeros:          data?.numeros          ?? null,
+      numeros_match:    data?.numeros_match    ?? null,
+      numeros_desquite: data?.numeros_desquite ?? null,
+      numeros_sale:     data?.numeros_sale     ?? null,
+      numero_plus:      data?.numero_plus      ?? null,
+      pozo_proximo:     data?.pozo_proximo     ?? null,
+      fecha: fechaLP,
+    })
   }
 
   // Quiniela (default)

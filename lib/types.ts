@@ -84,8 +84,13 @@ export interface ResultadoQuini6 {
 export interface ResultadoLotoPlus {
   id: string
   created_at: string
-  fecha: string       // ISO date YYYY-MM-DD
-  numeros: string[]   // 6 números principales
+  fecha: string                      // ISO date YYYY-MM-DD
+  numeros: string[]                  // TRADICIONAL (6 números)
+  numeros_match: string[] | null     // MATCH (6 números)
+  numeros_desquite: string[] | null  // DESQUITE (6 números)
+  numeros_sale: string[] | null      // SALE O SALE (6 números)
+  numero_plus: string | null         // Número Plus
+  pozo_proximo: number | null        // Próximo pozo estimado (en pesos)
 }
 
 // ─── API Payloads ─────────────────────────────────────────────────────────────
