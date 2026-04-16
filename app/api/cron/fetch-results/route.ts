@@ -231,44 +231,41 @@ async function scrapearLotoPlus(fecha: string): Promise<string[]> {
   }
 
   // ── NÚMERO PLUS ─────────────────────────────────────────────────────────────
+  // Está en el <td> sibling del <td> con texto "NÚMERO PLUS" en la misma fila
   let numeroPlus: string | null = null
-
-  // 1. Intentar selectores de clase directa
-  for (const sel of [".numero-plus", ".loto-plus-numero", ".loto-plus", ".plus-numero", "#numplus", ".plus"]) {
-    const txt = $(sel).first().text().trim()
-    if (/^\d{1,2}$/.test(txt)) { numeroPlus = txt.padStart(2, "0"); break }
-  }
-
-  // 2. Buscar heading "NÚMERO PLUS" y leer el número hermano / hijo
-  if (!numeroPlus) {
-    $("h2, h3, h4, p, span, b, strong").each((_, el) => {
-      const t = $(el).text().trim().replace(/\s+/g, " ").toUpperCase()
-      if (t === "NÚMERO PLUS" || t === "NUMERO PLUS" || t === "NRO. PLUS") {
-        // Intentar hermano inmediato
-        const sibText = $(el).next().text().trim()
-        if (/^\d{1,2}$/.test(sibText)) { numeroPlus = sibText.padStart(2, "0"); return false }
-        // Intentar hijo
-        const childText = $(el).children().first().text().trim()
-        if (/^\d{1,2}$/.test(childText)) { numeroPlus = childText.padStart(2, "0"); return false }
-        // Intentar el propio padre
-        const parentNext = $(el).parent().next()
-        const pTxt = parentNext.find("[class]").first().text().trim()
-          || parentNext.text().trim()
-        if (/^\d{1,2}$/.test(pTxt)) { numeroPlus = pTxt.padStart(2, "0"); return false }
-      }
-    })
-  }
+  $("td").each((_, el) => {
+    if (/^n[uú]mero\s+plus$/i.test($(el).text().trim())) {
+      $(el).closest("tr").find("td").each((_, td) => {
+        if (td === el) return // saltar el label
+        // texto directo del td
+        const direct = $(td).clone().children().remove().end().text().trim()
+        if (/^\d{1,2}$/.test(direct)) { numeroPlus = direct.padStart(2, "0"); return false }
+        // primer hijo span/div
+        const child = $(td).find("span, div").first().text().trim()
+        if (/^\d{1,2}$/.test(child)) { numeroPlus = child.padStart(2, "0"); return false }
+      })
+      return false
+    }
+  })
 
   // ── Próximo Pozo Estimado ────────────────────────────────────────────────────
+  // El h2.loto-titulos "Próximo Pozo Estimado" precede al elemento con el monto
   let pozoProximo: number | null = null
-  const bodyText = $("body").text()
-  const pozoMatch =
-    bodyText.match(/[Pp]r[oó]ximo\s+[Pp]ozo[^0-9]*([\d.]+(?:\.\d{3})+)/s) ??
-    bodyText.match(/[Pp]ozo\s+[Ee]stimado[^0-9]*([\d.]+(?:\.\d{3})+)/s)
-  if (pozoMatch) {
-    const num = parseInt(pozoMatch[1].replace(/\./g, ""), 10)
-    if (num > 1_000_000) pozoProximo = num
-  }
+  $("h2.loto-titulos").each((_, el) => {
+    if (/pr[oó]ximo\s+pozo/i.test($(el).text())) {
+      let cursor = $(el).next()
+      while (cursor.length && pozoProximo === null) {
+        const txt = cursor.text().trim()
+        const match = txt.match(/\$?\s*(\d{1,3}(?:\.\d{3})+)/)
+        if (match) {
+          const num = parseInt(match[1].replace(/\./g, ""), 10)
+          if (num > 1_000_000) pozoProximo = num
+        }
+        cursor = cursor.next()
+      }
+      return false
+    }
+  })
 
   // ── Guardar ──────────────────────────────────────────────────────────────────
   const { error } = await db.from("resultados_lotoplus").upsert(
