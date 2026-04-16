@@ -1,0 +1,190 @@
+import { NextRequest, NextResponse } from "next/server"
+import * as cheerio from "cheerio"
+
+const ENDPOINT = "https://quiniela.loteriadelaciudad.gob.ar/resultadosQuiniela/consultaResultados.php"
+const MAIN_PAGE = "https://quiniela.loteriadelaciudad.gob.ar/"
+const CODIGO = "0080"
+
+export async function GET(request: NextRequest) {
+  const secret = request.nextUrl.searchParams.get("secret")
+  if (secret !== process.env.CRON_SECRET) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+  }
+
+  const action       = request.nextUrl.searchParams.get("action") ?? "sorteos"
+  const jurisdiccion = request.nextUrl.searchParams.get("jurisdiccion") ?? "51"
+  const sorteo       = request.nextUrl.searchParams.get("sorteo") ?? ""
+
+  try {
+    if (action === "sorteos") {
+      const res  = await fetch(MAIN_PAGE, { headers: { "User-Agent": "Mozilla/5.0" } })
+      const html = await res.text()
+      const $    = cheerio.load(html)
+
+      const opciones: { value: string; texto: string }[] = []
+      $("#valor3 option").each((_, el) => {
+        opciones.push({ value: $(el).attr("value") ?? "", texto: $(el).text().trim() })
+      })
+
+      // Buscar todos los selects para entender la estructura
+      const selects: { id: string; name: string; opciones: { value: string; texto: string }[] }[] = []
+      $("select").each((_, el) => {
+        const opts: { value: string; texto: string }[] = []
+        $(el).find("option").each((_, o) => {
+          opts.push({ value: $(o).attr("value") ?? "", texto: $(o).text().trim() })
+        })
+        selects.push({ id: $(el).attr("id") ?? "", name: $(el).attr("name") ?? "", opciones: opts })
+      })
+
+      return NextResponse.json({ opciones: opciones.slice(0, 10), selects })
+    }
+
+    if (action === "numeros") {
+      if (!sorteo) return NextResponse.json({ error: "Falta ?sorteo=XXXXX" }, { status: 400 })
+
+      const body = new URLSearchParams({ codigo: CODIGO, juridiccion: jurisdiccion, sorteo })
+      const res  = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent": "Mozilla/5.0",
+          Referer: MAIN_PAGE,
+        },
+        body: body.toString(),
+      })
+
+      const html = await res.text()
+      const $    = cheerio.load(html)
+
+      // Parseo con .pos
+      const numerosConPos: { pos: number; numero: string }[] = []
+      $(".infoJuego td").each((_, td) => {
+        let pos = -1; let numero = ""
+        $(td).find("div").each((_, div) => {
+          const txt = $(div).text().trim()
+          if ($(div).hasClass("pos")) pos = parseInt(txt, 10)
+          else if (/^\d{4}$/.test(txt)) numero = txt
+        })
+        if (pos > 0 && numero) numerosConPos.push({ pos, numero })
+      })
+      numerosConPos.sort((a, b) => a.pos - b.pos)
+
+      // Parseo alternativo — todos los divs con 4 dígitos en orden DOM
+      const numerosDOM: string[] = []
+      $(".infoJuego div").each((_, div) => {
+        const txt = $(div).text().trim()
+        if (/^\d{4}$/.test(txt)) numerosDOM.push(txt)
+      })
+
+      // Raw de los primeros 5 tds
+      const tdsRaw: string[] = []
+      $(".infoJuego td").each((_, td) => { tdsRaw.push($(td).html()?.trim() ?? "") })
+
+      return NextResponse.json({
+        jurisdiccion,
+        sorteo,
+        htmlLength: html.length,
+        empty: html.trim().length < 100,
+        numerosConPos,           // método actual (sort por .pos)
+        numerosDOM,              // método alternativo (orden DOM)
+        tdsRaw: tdsRaw.slice(0, 6),
+        htmlSnippet: html.substring(0, 3000),
+      })
+    }
+
+    // ── Probar varios códigos de jurisdicción para encontrar Entre Ríos ─────────
+    if (action === "buscar-entrerios") {
+      if (!sorteo) return NextResponse.json({ error: "Falta ?sorteo=XXXXX" }, { status: 400 })
+
+      // Rango amplio de códigos
+      const candidatos = Array.from({ length: 60 }, (_, i) => String(i + 40))
+      const resultados: { code: string; tiene_datos: boolean; cabeza?: string; html_length: number; html_snippet?: string }[] = []
+
+      for (const code of candidatos) {
+        const body = new URLSearchParams({ codigo: CODIGO, juridiccion: code, sorteo })
+        const res  = await fetch(ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0", Referer: MAIN_PAGE },
+          body: body.toString(),
+        })
+        const html = await res.text()
+        const $    = cheerio.load(html)
+        const numerosConPos: { pos: number; numero: string }[] = []
+        $(".infoJuego").first().find("td").each((_, td) => {
+          let pos = -1; let numero = ""
+          $(td).find("div").each((_, div) => {
+            const txt = $(div).text().trim()
+            if ($(div).hasClass("pos")) pos = parseInt(txt, 10)
+            else if (/^\d{4}$/.test(txt)) numero = txt
+          })
+          if (pos > 0 && numero) numerosConPos.push({ pos, numero })
+        })
+        numerosConPos.sort((a, b) => a.pos - b.pos)
+        const entry: typeof resultados[0] = {
+          code,
+          tiene_datos: numerosConPos.length > 0,
+          cabeza: numerosConPos[0]?.numero,
+          html_length: html.length,
+        }
+        // Si tiene tamaño distinto al vacío (1182), mostrar snippet
+        if (html.length !== 1182) entry.html_snippet = html.substring(0, 500)
+        resultados.push(entry)
+        await new Promise((r) => setTimeout(r, 150))
+      }
+
+      return NextResponse.json({ sorteo, resultados: resultados.filter(r => r.html_length !== 1182 || r.tiene_datos) })
+    }
+
+    // ── Extraer función resultadosRios y código 59 ─────────────────────────────
+    if (action === "main-html") {
+      const res  = await fetch(MAIN_PAGE, { headers: { "User-Agent": "Mozilla/5.0" } })
+      const html = await res.text()
+
+      // Extraer bloque de la función resultadosRios completa
+      const fnMatch = html.match(/function resultadosRios[\s\S]{0,2000}?(?=\nfunction|\n<\/script>)/)
+      const fnCompleta = fnMatch ? fnMatch[0] : null
+
+      // Buscar URLs en esa función
+      const urlsEnFn = fnCompleta?.match(/['"]([^'"]*\.php[^'"]*)['"]/g) ?? []
+
+      // Buscar qué es el código 59
+      const lineas59 = html.split("\n").filter(l => l.includes("59") || l.includes("Corrientes") || l.includes("Entre"))
+
+      return NextResponse.json({ fnCompleta, urlsEnFn, lineas59 })
+    }
+
+    // ── Debug HTML del Quini 6 — prueba múltiples fuentes ───────────────────
+    if (action === "quini6-html") {
+      const URLS = [
+        "https://iplyc.gba.gob.ar/quini6",
+        "https://www.loteriaentrerios.gov.ar/",
+        "https://quiniela.loteriadelaciudad.gob.ar/quini6",
+        "https://quinielaonline.com.ar/resultados-quini6",
+        "https://www.laquiniela.online/quini-6",
+        "https://resultados-de-quiniela.com.ar/quini-6",
+      ]
+
+      const resultados: { url: string; status: number; htmlLength: number; htmlSnippet: string }[] = []
+
+      for (const url of URLS) {
+        try {
+          const res  = await fetch(url, {
+            headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+            signal: AbortSignal.timeout(8000),
+          })
+          const html = await res.text()
+          resultados.push({ url, status: res.status, htmlLength: html.length, htmlSnippet: html.substring(0, 1500) })
+        } catch (e) {
+          resultados.push({ url, status: 0, htmlLength: 0, htmlSnippet: String(e) })
+        }
+      }
+
+      return NextResponse.json({ resultados })
+    }
+
+    return NextResponse.json({ error: "action inválida. Usá ?action=sorteos, numeros, o buscar-entrerios" }, { status: 400 })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
+}
