@@ -56,7 +56,7 @@ export function HeroCard({ href, amount, unit, schedule }: HeroCardProps) {
       {/* ── Logo con efecto — derecha, un poco más abajo ─────────── */}
       <motion.div
         className="absolute h-full"
-        style={{ x: bgX, y: bgY, bottom: "-20px", right: "-12%" }}
+        style={{ x: bgX, y: bgY, bottom: "-35px", right: "-4%" }}
       >
         <img
           src="/images/LogoLotoPlusConEfecto.webp"
