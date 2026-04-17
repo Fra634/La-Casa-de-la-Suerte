@@ -250,45 +250,33 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ lotoNumeros, headings, plusEls: plusEls.slice(0, 20), pozoEls, bigNumbers: bigNumbers.slice(0, 20), pozoById: pozoById.slice(0, 20) })
     }
 
-    // ── Debug: testear fetch a loteriasantafe.gov.ar ─────────────────────────
+    // ── Debug: ver todos los números grandes en jugandoonline Quini 6 ─────────
     if (action === "pozo-debug") {
-      const url = "https://www.loteriasantafe.gov.ar/index.php/resultados/quini-6"
-      try {
-        const res = await fetch(url, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "es-AR,es;q=0.9",
-          },
-          signal: AbortSignal.timeout(20000),
-        })
-        const html = await res.text()
-        const $ = cheerio.load(html)
+      const html = await fetch("https://www.jugandoonline.com.ar/Quini6/sorteos.asp", {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; bot/1.0)" },
+        signal: AbortSignal.timeout(20000),
+      }).then(r => r.text())
+      const $ = cheerio.load(html)
 
-        // Todos los montos con formato $X.XXX.XXX
-        const bodyText = $("body").text()
-        const matches = [...bodyText.matchAll(/\$\s*([\d]{1,3}(?:\.[\d]{3})+)/g)]
-          .map(m => ({ raw: m[0].trim(), parsed: parseInt(m[1].replace(/\./g, ""), 10) }))
+      // Cada número grande con su contexto: texto del padre y del abuelo
+      const bigEls: { tag: string; id: string; class: string; text: string; parentText: string; grandparentHtml: string }[] = []
+      $("*").each((_, el) => {
+        const own = $(el).clone().children().remove().end().text().trim()
+        if (/\d{1,3}(?:\.\d{3}){2,}/.test(own) && own.length < 120) {
+          const parent   = $(el).parent()
+          const grandpa  = parent.parent()
+          bigEls.push({
+            tag:            el.tagName,
+            id:             $(el).attr("id") ?? "",
+            class:          $(el).attr("class") ?? "",
+            text:           own,
+            parentText:     parent.text().trim().slice(0, 200),
+            grandparentHtml: ($.html(grandpa) ?? "").slice(0, 400),
+          })
+        }
+      })
 
-        // Elementos con números grandes
-        const bigEls: { tag: string; id: string; class: string; text: string }[] = []
-        $("*").each((_, el) => {
-          const own = $(el).clone().children().remove().end().text().trim()
-          if (/\d{1,3}(?:\.\d{3}){2,}/.test(own) && own.length < 80) {
-            bigEls.push({ tag: el.tagName, id: $(el).attr("id") ?? "", class: $(el).attr("class") ?? "", text: own })
-          }
-        })
-
-        return NextResponse.json({
-          status: res.status,
-          htmlLength: html.length,
-          montos: matches.slice(0, 10),
-          bigEls: bigEls.slice(0, 15),
-          snippet: html.slice(0, 2000),
-        })
-      } catch (e) {
-        return NextResponse.json({ error: String(e) })
-      }
+      return NextResponse.json({ bigEls: bigEls.slice(0, 20) })
     }
 
     return NextResponse.json({ error: "action inválida. Usá ?action=sorteos, numeros, o buscar-entrerios" }, { status: 400 })
