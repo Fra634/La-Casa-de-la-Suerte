@@ -250,33 +250,50 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ lotoNumeros, headings, plusEls: plusEls.slice(0, 20), pozoEls, bigNumbers: bigNumbers.slice(0, 20), pozoById: pozoById.slice(0, 20) })
     }
 
-    // ── Debug: ver todos los números grandes en jugandoonline Quini 6 ─────────
+    // ── Debug: buscar pozo acumulado próximo en múltiples fuentes ────────────
     if (action === "pozo-debug") {
-      const html = await fetch("https://www.jugandoonline.com.ar/Quini6/sorteos.asp", {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; bot/1.0)" },
-        signal: AbortSignal.timeout(20000),
-      }).then(r => r.text())
-      const $ = cheerio.load(html)
+      const URLS_PRUEBA = [
+        "https://www.jugandoonline.com.ar/Quini6/",          // Página principal Quini 6 (podría mostrar próximo pozo)
+        "https://www.jugandoonline.com.ar/",                 // Home de jugandoonline
+        "https://quinielanet.com.ar/quini-6",
+        "https://resultados-de-quiniela.com.ar/quini-6",
+        "https://www.pjmbuenosaires.gob.ar/",               // Lotería Buenos Aires
+      ]
 
-      // Cada número grande con su contexto: texto del padre y del abuelo
-      const bigEls: { tag: string; id: string; class: string; text: string; parentText: string; grandparentHtml: string }[] = []
-      $("*").each((_, el) => {
-        const own = $(el).clone().children().remove().end().text().trim()
-        if (/\d{1,3}(?:\.\d{3}){2,}/.test(own) && own.length < 120) {
-          const parent   = $(el).parent()
-          const grandpa  = parent.parent()
-          bigEls.push({
-            tag:            el.tagName,
-            id:             $(el).attr("id") ?? "",
-            class:          $(el).attr("class") ?? "",
-            text:           own,
-            parentText:     parent.text().trim().slice(0, 200),
-            grandparentHtml: ($.html(grandpa) ?? "").slice(0, 400),
+      const resultados: { url: string; status: number; htmlLen: number; bigEls: { tag: string; text: string; parentText: string }[]; error?: string }[] = []
+
+      for (const url of URLS_PRUEBA) {
+        try {
+          const res  = await fetch(url, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+              "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            },
+            signal: AbortSignal.timeout(10000),
           })
-        }
-      })
+          const html = await res.text()
+          const $    = cheerio.load(html)
 
-      return NextResponse.json({ bigEls: bigEls.slice(0, 20) })
+          const bigEls: { tag: string; text: string; parentText: string }[] = []
+          $("*").each((_, el) => {
+            const own = $(el).clone().children().remove().end().text().trim()
+            // Buscar montos >= 100 millones (9+ dígitos con puntos)
+            if (/\d{1,3}(?:\.\d{3}){2,}/.test(own) && own.length < 120) {
+              bigEls.push({
+                tag: el.tagName,
+                text: own,
+                parentText: $(el).parent().text().trim().slice(0, 150),
+              })
+            }
+          })
+
+          resultados.push({ url, status: res.status, htmlLen: html.length, bigEls: bigEls.slice(0, 8) })
+        } catch (e) {
+          resultados.push({ url, status: 0, htmlLen: 0, bigEls: [], error: String(e) })
+        }
+      }
+
+      return NextResponse.json({ resultados })
     }
 
     return NextResponse.json({ error: "action inválida. Usá ?action=sorteos, numeros, o buscar-entrerios" }, { status: 400 })
