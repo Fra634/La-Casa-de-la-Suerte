@@ -250,46 +250,50 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ lotoNumeros, headings, plusEls: plusEls.slice(0, 20), pozoEls, bigNumbers: bigNumbers.slice(0, 20), pozoById: pozoById.slice(0, 20) })
     }
 
-    // ── Debug: buscar pozo acumulado próximo en múltiples fuentes ────────────
+    // ── Debug: buscar pozo acumulado próximo — fuentes alternativas ──────────
     if (action === "pozo-debug") {
       const URLS_PRUEBA = [
-        "https://www.jugandoonline.com.ar/Quini6/",          // Página principal Quini 6 (podría mostrar próximo pozo)
-        "https://www.jugandoonline.com.ar/",                 // Home de jugandoonline
-        "https://quinielanet.com.ar/quini-6",
-        "https://resultados-de-quiniela.com.ar/quini-6",
-        "https://www.pjmbuenosaires.gob.ar/",               // Lotería Buenos Aires
+        // iplyc: lotería bonaerense, suele mostrar jackpot próximo
+        "https://iplyc.gba.gob.ar/quini6",
+        "https://iplyc.gba.gob.ar/",
+        // Lotería Santa Fe — intentar con headers de API/mobile
+        "https://www.loteriasantafe.gov.ar/index.php/component/rsform/form/6-proximos-pozos",
+        // Home de jugandoonline (ver snippet para detectar texto de próximo pozo)
+        "https://www.jugandoonline.com.ar/",
       ]
 
-      const resultados: { url: string; status: number; htmlLen: number; bigEls: { tag: string; text: string; parentText: string }[]; error?: string }[] = []
+      const resultados: { url: string; status: number; htmlLen: number; snippet: string; bigEls: { tag: string; text: string; parentText: string }[]; pozoMentions: string[]; error?: string }[] = []
 
       for (const url of URLS_PRUEBA) {
         try {
           const res  = await fetch(url, {
             headers: {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+              "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
               "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+              "Accept-Language": "es-AR,es;q=0.9",
+              "Cache-Control": "no-cache",
             },
-            signal: AbortSignal.timeout(10000),
+            signal: AbortSignal.timeout(12000),
           })
           const html = await res.text()
           const $    = cheerio.load(html)
 
+          // Números grandes
           const bigEls: { tag: string; text: string; parentText: string }[] = []
           $("*").each((_, el) => {
             const own = $(el).clone().children().remove().end().text().trim()
-            // Buscar montos >= 100 millones (9+ dígitos con puntos)
             if (/\d{1,3}(?:\.\d{3}){2,}/.test(own) && own.length < 120) {
-              bigEls.push({
-                tag: el.tagName,
-                text: own,
-                parentText: $(el).parent().text().trim().slice(0, 150),
-              })
+              bigEls.push({ tag: el.tagName, text: own, parentText: $(el).parent().text().trim().slice(0, 150) })
             }
           })
 
-          resultados.push({ url, status: res.status, htmlLen: html.length, bigEls: bigEls.slice(0, 8) })
+          // Menciones de "pozo" en el texto completo
+          const bodyText = $("body").text()
+          const lines = bodyText.split("\n").map(l => l.trim()).filter(l => /pozo|acumul|jackpot|próximo/i.test(l) && l.length > 2 && l.length < 200)
+
+          resultados.push({ url, status: res.status, htmlLen: html.length, snippet: html.slice(0, 1500), bigEls: bigEls.slice(0, 10), pozoMentions: lines.slice(0, 10) })
         } catch (e) {
-          resultados.push({ url, status: 0, htmlLen: 0, bigEls: [], error: String(e) })
+          resultados.push({ url, status: 0, htmlLen: 0, snippet: "", bigEls: [], pozoMentions: [], error: String(e) })
         }
       }
 
