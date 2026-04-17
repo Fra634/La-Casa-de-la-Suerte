@@ -1,0 +1,17 @@
+name: Quiniela Poll
+
+on:
+  schedule:
+    # Cada 15 minutos, lunes a sábado (UTC — Argentina es UTC-3)
+    # Cubre de 09:00 a 23:45 ART (12:00 a 02:45 UTC)
+    - cron: "0,15,30,45 12-23 * * 1-6"
+    - cron: "0,15,30,45 0,1,2 * * 2-7"
+  workflow_dispatch: # permite correrlo manualmente desde GitHub
+
+jobs:
+  fetch-quiniela:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar al scraper
+        run: |
+          curl -f -s "https://v0-agencialacasadelasuerte.vercel.app/api/cron/fetch-results?force=quiniela&secret=${{ secrets.CRON_SECRET }}" | head -c 500
