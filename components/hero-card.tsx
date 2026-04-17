@@ -58,9 +58,12 @@ export function HeroCard({ href, amount, unit, schedule }: HeroCardProps) {
         className="absolute right-0 h-full"
         style={{ x: bgX, y: bgY, bottom: "-20px" }}
       >
-        <img
-          src="/images/LogoLotoPlusConEfecto.webp"
-          alt=""
+        <video
+          src="/images/LogoLotoPlusConEfecto.webm"
+          autoPlay
+          loop
+          muted
+          playsInline
           className="h-full w-auto"
         />
       </motion.div>
