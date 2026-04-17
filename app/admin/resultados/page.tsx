@@ -235,8 +235,8 @@ export default function AdminResultadosPage() {
         {tab === "pozos" && (
           <form onSubmit={enviarPozos} className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Ingresá el pozo acumulado actual del Quini 6 (en pesos, sin puntos ni comas).
-              Actualizalo después de cada sorteo del martes y viernes.
+              Ingresá el pozo acumulado del Quini 6 (en pesos, sin puntos ni comas).
+              Actualizalo después de cada sorteo del miércoles y domingo.
             </p>
             <Field label="Pozo acumulado ($)">
               <input
@@ -244,10 +244,15 @@ export default function AdminResultadosPage() {
                 min="0"
                 value={pMonto}
                 onChange={(e) => setPMonto(e.target.value)}
-                placeholder="Ej: 1500000000"
+                placeholder="Ej: 4600000000"
                 className={inputClass}
               />
             </Field>
+            {pMonto && !isNaN(Number(pMonto)) && Number(pMonto) > 0 && (
+              <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                → Se mostrará como: <span className="tabular-nums">${Math.round(Number(pMonto) / 1_000_000).toLocaleString("es-AR")} millones</span>
+              </p>
+            )}
             <SubmitButton status={status} />
           </form>
         )}
