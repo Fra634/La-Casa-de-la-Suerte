@@ -50,7 +50,8 @@ export default function AdminResultadosPage() {
   const [q6Numeros, setQ6Numeros] = useState("")
 
   // ── Pozos form ────────────────────────────────────────────────────────────────
-  const [pMonto, setPMonto] = useState("")
+  const [pMonto, setPMonto]         = useState("")
+  const [pLotoPlus, setPLotoPlus]   = useState("")
 
   function parseNumeros(raw: string): string[] {
     return raw
@@ -96,11 +97,14 @@ export default function AdminResultadosPage() {
     e.preventDefault()
     setStatus("loading")
     try {
-      const monto = parseInt(pMonto || "0")
+      const body: Record<string, number> = {}
+      if (pMonto)    body.tradicional = parseInt(pMonto)
+      if (pLotoPlus) body.lotoplus    = parseInt(pLotoPlus)
+      if (Object.keys(body).length === 0) throw new Error("Ingresá al menos un valor")
       const res = await fetch("/api/pozos", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-admin-key": apiKey },
-        body: JSON.stringify({ tradicional: monto, segunda: monto, revancha: monto, siempre_sale: monto }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) { const err = await res.json(); throw new Error(err.error ?? "Error") }
       setStatus("success")
@@ -233,26 +237,51 @@ export default function AdminResultadosPage() {
 
         {/* Pozos form */}
         {tab === "pozos" && (
-          <form onSubmit={enviarPozos} className="space-y-4">
+          <form onSubmit={enviarPozos} className="space-y-5">
             <p className="text-sm text-muted-foreground">
-              Ingresá el pozo acumulado del Quini 6 (en pesos, sin puntos ni comas).
-              Actualizalo después de cada sorteo del miércoles y domingo.
+              Dejá vacío el campo que no querés cambiar.
             </p>
-            <Field label="Pozo acumulado ($)">
-              <input
-                type="number"
-                min="0"
-                value={pMonto}
-                onChange={(e) => setPMonto(e.target.value)}
-                placeholder="Ej: 4600000000"
-                className={inputClass}
-              />
-            </Field>
-            {pMonto && !isNaN(Number(pMonto)) && Number(pMonto) > 0 && (
-              <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                → Se mostrará como: <span className="tabular-nums">${Math.round(Number(pMonto) / 1_000_000).toLocaleString("es-AR")} millones</span>
-              </p>
-            )}
+
+            {/* Quini 6 */}
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">Quini 6 — sorteo miércoles y domingo</p>
+              <Field label="Pozo acumulado ($)">
+                <input
+                  type="number"
+                  min="0"
+                  value={pMonto}
+                  onChange={(e) => setPMonto(e.target.value)}
+                  placeholder="Ej: 4600000000"
+                  className={inputClass}
+                />
+              </Field>
+              {pMonto && !isNaN(Number(pMonto)) && Number(pMonto) > 0 && (
+                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                  → Se mostrará como: <span className="tabular-nums">${Math.round(Number(pMonto) / 1_000_000).toLocaleString("es-AR")} millones</span>
+                </p>
+              )}
+            </div>
+
+            {/* Loto Plus */}
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">Loto Plus — sorteo martes y viernes</p>
+              <Field label="Próximo pozo ($)">
+                <input
+                  type="number"
+                  min="0"
+                  value={pLotoPlus}
+                  onChange={(e) => setPLotoPlus(e.target.value)}
+                  placeholder="Ej: 28326000"
+                  className={inputClass}
+                />
+              </Field>
+              {pLotoPlus && !isNaN(Number(pLotoPlus)) && Number(pLotoPlus) > 0 && (
+                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                  → Se mostrará como: <span className="tabular-nums">${Math.round(Number(pLotoPlus) / 1_000_000).toLocaleString("es-AR")} millones</span>
+                </p>
+              )}
+            </div>
+
             <SubmitButton status={status} />
           </form>
         )}

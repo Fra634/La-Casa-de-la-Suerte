@@ -41,7 +41,7 @@ function pozoEnMillones(n: number): string {
 
 type HomeTab = "jugar" | "resultados"
 
-export function HomeClient({ pozo }: { pozo: number }) {
+export function HomeClient({ pozo, pozoLotoPlus }: { pozo: number; pozoLotoPlus: number }) {
   const [tab, setTab]   = useState<HomeTab>("jugar")
   const touchStart      = useRef({ x: 0, y: 0 })
   const proximoSorteo   = getProximoSorteo()
@@ -250,7 +250,7 @@ export function HomeClient({ pozo }: { pozo: number }) {
               {/* Loto Plus */}
               <HeroCard
                 href="/lotoplus"
-                amount="$28.326"
+                amount={pozoLotoPlus > 0 ? pozoEnMillones(pozoLotoPlus) : "$–"}
                 unit="millones"
                 schedule="Sorteo: Martes y viernes"
               />

@@ -3,21 +3,21 @@ import { HomeClient } from "@/components/home-client"
 
 export const dynamic = "force-dynamic"
 
-async function getPozoAcumulado(): Promise<number> {
+async function getPozos(): Promise<{ quini6: number; lotoplus: number }> {
   try {
     const supabase = createAdminClient()
     const { data } = await supabase
       .from("pozos_acumulados")
-      .select("tradicional")
+      .select("tradicional, lotoplus")
       .eq("id", 1)
       .single()
-    return data?.tradicional ?? 0
+    return { quini6: data?.tradicional ?? 0, lotoplus: data?.lotoplus ?? 0 }
   } catch {
-    return 0
+    return { quini6: 0, lotoplus: 0 }
   }
 }
 
 export default async function HomePage() {
-  const pozo = await getPozoAcumulado()
-  return <HomeClient pozo={pozo} />
+  const pozos = await getPozos()
+  return <HomeClient pozo={pozos.quini6} pozoLotoPlus={pozos.lotoplus} />
 }
