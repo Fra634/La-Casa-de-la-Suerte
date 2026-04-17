@@ -124,16 +124,15 @@ export function HomeClient({ pozo, pozoLotoPlus }: { pozo: number; pozoLotoPlus:
                 className="block rounded-2xl shadow-sm overflow-hidden hover:shadow-md transition-shadow relative"
                 style={{ background: "#111", height: "171px" }}
               >
-                {/* Imagen de fondo: bolas de lotería */}
-                <div className="absolute inset-0 w-full h-full">
-                  <Image
-                    src="/images/quiniela-bolas.png"
-                    alt=""
-                    fill
-                    className="object-cover object-center opacity-60"
-                    priority
-                  />
-                </div>
+                {/* Video de fondo */}
+                <video
+                  src="/images/BackGroundHeroCardQuiniela.webm"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
 
                 {/* Barra superior */}
                 <div
