@@ -138,61 +138,41 @@ async function scrapearQuini6(fecha: string): Promise<string[]> {
   return log
 }
 
-// ─── Quini 6 — Pozos acumulados ───────────────────────────────────────────────
-// Intenta extraer el pozo acumulado de cada modalidad desde la página de resultados.
-// Cuando el jackpot no fue ganado (vacante), la página muestra el monto acumulado.
+// ─── Quini 6 — Pozo acumulado ─────────────────────────────────────────────────
+// Fuente: Lotería de Santa Fe (siempre muestra el pozo actual del Quini 6)
+// URL: https://www.loteriasantafe.gov.ar/index.php/resultados/quini-6
 
 async function scrapearPozosQuini6(): Promise<string[]> {
-  const html = await fetchHtml(`${BASE}/Quini6/sorteos.asp`)
+  const html = await fetchHtml("https://www.loteriasantafe.gov.ar/index.php/resultados/quini-6")
   const $    = cheerio.load(html)
   const db   = createAdminClient()
 
-  const TIPOS_POZO: { patron: string; key: string }[] = [
-    { patron: "PRIMER SORTEO", key: "tradicional"  },
-    { patron: "SEGUNDA",       key: "segunda"      },
-    { patron: "REVANCHA",      key: "revancha"     },
-    { patron: "SALE",          key: "siempre_sale" },
-  ]
+  // La página muestra el monto en formato "$ 4.600.000.000"
+  // Buscamos el número más grande con separador de miles por puntos
+  let pozoTradicional: number | null = null
+  const bodyText = $("body").text()
 
-  const pozos: Record<string, number> = {}
-
-  // Para cada encabezado de sección, buscamos un monto de pozo en el texto siguiente
-  $("h2.quini-titulos").each((_, headingEl) => {
-    const heading = $(headingEl).text().trim().toUpperCase()
-    let key: string | null = null
-    for (const { patron, key: k } of TIPOS_POZO) {
-      if (heading.includes(patron)) { key = k; break }
+  // Encontrar todos los montos con formato argentino (puntos como miles)
+  const matches = [...bodyText.matchAll(/\$\s*([\d]+(?:\.[\d]{3})+)/g)]
+  for (const m of matches) {
+    const num = parseInt(m[1].replace(/\./g, ""), 10)
+    if (num > 100_000_000) { // mayor a 100 millones → es el pozo
+      pozoTradicional = num
+      break
     }
-    if (!key) return
+  }
 
-    // Recolectar texto de los hermanos hasta el próximo h2
-    let sectionText = ""
-    let cursor = $(headingEl).next()
-    while (cursor.length && !cursor.is("h2.quini-titulos")) {
-      sectionText += " " + cursor.text()
-      cursor = cursor.next()
-    }
-
-    // Buscar monto en formato $1.608.013.134 o 1.608.013.134
-    const match = sectionText.match(/\$\s*([\d.]+(?:\.\d{3})+)/)
-      || sectionText.match(/POZO[^$\d]*([\d.]+(?:\.\d{3})+)/i)
-    if (match) {
-      const num = parseInt(match[1].replace(/\./g, ""), 10)
-      if (num > 100_000) pozos[key] = num
-    }
-  })
-
-  if (Object.keys(pozos).length === 0) {
-    return ["– pozos quini6: sin datos de pozo vacante esta semana"]
+  if (!pozoTradicional) {
+    return ["– pozos quini6: no se encontró monto en loteriasantafe.gov.ar"]
   }
 
   const { error } = await db.from("pozos_acumulados").upsert(
-    { id: 1, ...pozos, updated_at: new Date().toISOString() },
+    { id: 1, tradicional: pozoTradicional, updated_at: new Date().toISOString() },
     { onConflict: "id" }
   )
   return [error
     ? `✗ pozos quini6: ${error.message}`
-    : `✓ pozos quini6: ${JSON.stringify(pozos)}`
+    : `✓ pozos quini6: $${Math.round(pozoTradicional / 1_000_000).toLocaleString("es-AR")} millones`
   ]
 }
 

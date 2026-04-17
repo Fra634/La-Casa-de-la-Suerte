@@ -32,6 +32,11 @@ function formatPozo(n: number): string {
   return `$${n.toLocaleString("es-AR")}`
 }
 
+/** Convierte 4_600_000_000 → "$4.600" para mostrar junto a "millones" */
+function pozoEnMillones(n: number): string {
+  return `$${Math.round(n / 1_000_000).toLocaleString("es-AR")}`
+}
+
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 type HomeTab = "jugar" | "resultados"
@@ -208,7 +213,7 @@ export function HomeClient({ pozo }: { pozo: number }) {
                               textShadow: "0 0 6px rgba(255,255,255,0.55), 0 0 16px rgba(200,230,255,0.45), 0 0 38px rgba(150,200,255,0.28), 0 0 70px rgba(100,170,255,0.15)",
                             }}
                           >
-                            $6.600
+                            {pozoEnMillones(pozo)}
                           </p>
                           <p
                             className="text-sm font-bold"
