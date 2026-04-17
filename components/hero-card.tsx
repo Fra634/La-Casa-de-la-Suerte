@@ -62,7 +62,7 @@ export function HeroCard({ href, amount, unit, schedule }: HeroCardProps) {
           src="/images/LogoLotoPlusConEfecto.webp"
           alt=""
           className="w-auto"
-          style={{ height: "75%" }}
+          style={{ height: "65%" }}
         />
       </motion.div>
 
