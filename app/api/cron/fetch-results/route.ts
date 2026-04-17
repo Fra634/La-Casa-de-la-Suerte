@@ -59,16 +59,24 @@ async function scrapearQuiniela(fecha: string): Promise<string[]> {
   const log: string[] = []
 
   // 1. Leer estado actual — qué combos ya tienen los 20 números
-  const { data: existing } = await db
+  const { data: existing, error: existingError } = await db
     .from("resultados_quiniela")
     .select("turno, loteria, premios_20")
     .eq("fecha", fecha)
 
+  // DEBUG TEMPORAL
+  log.push(`[debug] existing: ${existing?.length ?? "null"} rows, error: ${existingError?.message ?? "none"}`)
+  if (existing && existing.length > 0) {
+    const sample = existing[0]
+    log.push(`[debug] sample[0]: turno=${sample.turno} loteria=${sample.loteria} premios_20 type=${typeof sample.premios_20} isArray=${Array.isArray(sample.premios_20)} len=${Array.isArray(sample.premios_20) ? sample.premios_20.length : "N/A"}`)
+  }
+
   const locked = new Set(
     (existing ?? [])
-      .filter(r => (r.premios_20 ?? []).length === 20)
+      .filter(r => Array.isArray(r.premios_20) && r.premios_20.length === 20)
       .map(r => `${r.turno}-${r.loteria}`)
   )
+  log.push(`[debug] locked.size=${locked.size}`)
 
   if (locked.size >= TOTAL_QUINIELA) {
     return ["✓ quiniela: todos los resultados completos"]
