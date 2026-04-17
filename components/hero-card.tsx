@@ -59,7 +59,7 @@ export function HeroCard({ href, amount, unit, schedule }: HeroCardProps) {
         style={{ x: bgX, y: bgY, bottom: "-20px" }}
       >
         <img
-          src="/images/LogoLotoPlusConEfecto.gif"
+          src="/images/LogoLotoPlusConEfecto.webp"
           alt=""
           className="h-full w-auto"
         />
