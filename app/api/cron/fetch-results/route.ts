@@ -49,15 +49,39 @@ const LOTERIAS: { clase: string; loteria: Loteria }[] = [
   { clase: "Montevideo", loteria: "montevideo"},
 ]
 
+// Montevideo solo participa en matutina y nocturna
+const TURNOS_MONTEVIDEO = new Set<Turno>(["matutina", "nocturna"])
+// Total de combinaciones válidas: 5 loterias × 5 turnos + Montevideo × 2 = 27
+const TOTAL_QUINIELA = TURNOS.length * (LOTERIAS.length - 1) + TURNOS_MONTEVIDEO.size
+
 async function scrapearQuiniela(fecha: string): Promise<string[]> {
+  const db  = createAdminClient()
+  const log: string[] = []
+
+  // 1. Leer estado actual — qué combos ya tienen los 20 números
+  const { data: existing } = await db
+    .from("resultados_quiniela")
+    .select("turno, loteria, premios_20")
+    .eq("fecha", fecha)
+
+  const locked = new Set(
+    (existing ?? [])
+      .filter(r => (r.premios_20 ?? []).length === 20)
+      .map(r => `${r.turno}-${r.loteria}`)
+  )
+
+  if (locked.size >= TOTAL_QUINIELA) {
+    return ["✓ quiniela: todos los resultados completos"]
+  }
+
+  // 2. Scrape
   const html = await fetchHtml(`${BASE}/SorteosQuiniela3.aspx`)
   const $    = cheerio.load(html)
-  const db   = createAdminClient()
-  const log: string[] = []
+  let guardados = 0
 
   for (const { divId, turno } of TURNOS) {
     const turnDiv = $(`#${divId}`)
-    if (!turnDiv.length) { log.push(`– ${turno}: sin datos aún`); continue }
+    if (!turnDiv.length) continue
 
     for (const bloque of turnDiv.find(".sorteos-enzo").toArray()) {
       let loteria: Loteria | null = null
@@ -66,12 +90,19 @@ async function scrapearQuiniela(fecha: string): Promise<string[]> {
       }
       if (!loteria) continue
 
+      // Montevideo solo en matutina y nocturna
+      if (loteria === "montevideo" && !TURNOS_MONTEVIDEO.has(turno)) continue
+
+      const key = `${turno}-${loteria}`
+      if (locked.has(key)) continue  // ya completo, no sobreescribir
+
       const numeros: string[] = []
       $(bloque).find(".Num").each((_, el) => {
         const n = $(el).text().trim()
         if (/^\d{4}$/.test(n)) numeros.push(n)
       })
-      if (numeros.length === 0) continue
+
+      if (numeros.length !== 20) continue  // incompleto, esperar próxima ejecución
 
       const { error } = await db.from("resultados_quiniela").upsert(
         {
@@ -79,16 +110,21 @@ async function scrapearQuiniela(fecha: string): Promise<string[]> {
           cabeza:     numeros[0],
           premios_5:  numeros.slice(0, 5),
           premios_10: numeros.slice(0, 10),
-          premios_20: numeros.slice(0, 20),
+          premios_20: numeros,
         },
         { onConflict: "fecha,turno,loteria" }
       )
-      log.push(error
-        ? `✗ quiniela ${loteria} ${turno}: ${error.message}`
-        : `✓ quiniela ${loteria} ${turno}: ${numeros[0]}`
-      )
+      if (error) {
+        log.push(`✗ quiniela ${loteria} ${turno}: ${error.message}`)
+      } else {
+        log.push(`✓ quiniela ${loteria} ${turno}: ${numeros[0]}`)
+        guardados++
+      }
     }
   }
+
+  const restantes = TOTAL_QUINIELA - locked.size - guardados
+  if (restantes > 0) log.push(`… quiniela: ${restantes} combos pendientes`)
   return log
 }
 
@@ -310,8 +346,8 @@ export async function GET(request: NextRequest) {
 
   const logs: string[] = []
 
-  // Quiniela — Lunes a Sábado
-  if ((dia >= 1 && dia <= 6) || force === "all") {
+  // Quiniela — Lunes a Sábado (o forzado)
+  if ((dia >= 1 && dia <= 6) || force === "quiniela" || force === "all") {
     try { logs.push(...await scrapearQuiniela(fecha)) }
     catch (e) { logs.push(`✗ quiniela error: ${e}`) }
   }

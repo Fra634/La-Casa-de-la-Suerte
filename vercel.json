@@ -1,8 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/cron/fetch-results",
-      "schedule": "15 1 * * *"
+      "path": "/api/cron/fetch-results?force=quiniela",
+      "schedule": "*/15 * * * 1-6"
     },
     {
       "path": "/api/cron/fetch-results?force=lotoplus",
