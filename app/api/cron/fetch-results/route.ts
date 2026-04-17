@@ -145,7 +145,7 @@ async function scrapearQuini6(fecha: string): Promise<string[]> {
 
 const FUENTES_POZO = [
   "https://www.loteriasantafe.gov.ar/index.php/resultados/quini-6",
-  `${BASE}/Quini6/sorteos.asp`,
+  // jugandoonline fallback deshabilitado — muestra montos de premios individuales, no el pozo acumulado
 ]
 
 async function fetchHtmlSafe(url: string): Promise<string | null> {
