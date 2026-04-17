@@ -53,7 +53,13 @@ export function HeroCard({ href, amount, unit, schedule }: HeroCardProps) {
         <img src="/images/BackGroundHeroCardLotoPlus.png" alt="" className="w-full h-full object-cover" />
       </motion.div>
 
-      {/* ── Logo con efecto — derecha, un poco más abajo ─────────── */}
+      {/* ── Logo con efecto — dos capas desfasadas para loop sin flash ── */}
+      <style>{`
+        @keyframes lp-logo {
+          0%, 80% { opacity: 1; }
+          92%, 100% { opacity: 0; }
+        }
+      `}</style>
       <motion.div
         className="absolute right-0 h-full"
         style={{ x: bgX, y: bgY, bottom: "-20px" }}
@@ -61,7 +67,14 @@ export function HeroCard({ href, amount, unit, schedule }: HeroCardProps) {
         <img
           src="/images/LogoLotoPlusConEfecto.webp"
           alt=""
+          className="h-full w-auto absolute right-0"
+          style={{ animation: "lp-logo 5s linear infinite" }}
+        />
+        <img
+          src="/images/LogoLotoPlusConEfecto.webp"
+          alt=""
           className="h-full w-auto"
+          style={{ animation: "lp-logo 5s linear infinite -2.5s" }}
         />
       </motion.div>
 
