@@ -1,0 +1,23 @@
+name: Pozo Quini 6
+
+on:
+  schedule:
+    # Lunes y jueves 12:00 UTC (09:00 ART), la mañana siguiente a cada sorteo
+    # (mié y dom a la noche), que es cuando se actualiza el pozo estimado.
+    - cron: "0 12 * * 1,4"
+  workflow_dispatch: # permite correrlo a mano desde GitHub para probar
+
+jobs:
+  pozo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Instalar Playwright
+        run: npm i playwright@1.49.0 && npx playwright install --with-deps chromium
+      - name: Obtener el pozo y enviarlo
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: node .github/scripts/pozo-quini6.mjs
